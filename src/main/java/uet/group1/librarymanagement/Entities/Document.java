@@ -1,6 +1,6 @@
 package uet.group1.librarymanagement.Entities;
 
-public class Document {
+public abstract class Document {
     private static int counter = 1;
     private final int id;
     private String title;
