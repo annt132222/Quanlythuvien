@@ -1,13 +1,13 @@
 package uet.group1.librarymanagement.Entities;
 
-public abstract class Document {
+public abstract class Book {
     private static int counter = 1;
     private final int id;
     private String title;
     private String author;
     private boolean borrowed;
 
-    public Document(String title, String author) {
+    public Book(String title, String author) {
         this.id = counter++;
         this.title = title;
         this.author = author;
