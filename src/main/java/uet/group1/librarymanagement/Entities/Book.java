@@ -1,30 +1,30 @@
 package uet.group1.librarymanagement.Entities;
 
-public abstract class Book {
-    private static int counter = 1;
-    private final int id;
+public class Book {
+    private String id;
     private String title;
     private String author;
-    private boolean borrowed;
+    private int quantity;
 
-    public Book(String title, String author) {
-        this.id = counter++;
+    public Book(String id, String title, String author, int quantity) {
+        this.id = id;
         this.title = title;
         this.author = author;
-        this.borrowed = false;
+        this.quantity = quantity;
     }
 
-    public int getId() { return id; }
-    public String getTitle() { return title; }
+    public String getId() { return this.id; }
+    public String getTitle() { return this.title; }
+    public String getAuthor() { return this.author; }
+    public int getQuantity() { return this.quantity; }
+
     public void setTitle(String title) { this.title = title; }
-    public String getAuthor() { return author; }
     public void setAuthor(String author) { this.author = author; }
-    public boolean isBorrowed() { return borrowed; }
-    public void setBorrowed(boolean borrowed) { this.borrowed = borrowed; }
+    public void setQuantity(int quantity) { this.quantity = quantity; }
 
     @Override
     public String toString() {
-        return String.format("[%d] \"%s\" – %s [%s]",
-                id, title, author, borrowed ? "Đã mượn" : "Sẵn sàng");
+        return String.format("[%s] \"%s\" by %s (Available: %d)",
+                id, title, author, quantity);
     }
 }

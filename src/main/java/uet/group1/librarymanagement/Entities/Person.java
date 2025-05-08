@@ -1,69 +1,45 @@
 package uet.group1.librarymanagement.Entities;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public abstract class Person {
-    protected int id;
-    protected String password;
-    protected String name;
-    protected String address;
-    protected int phoneNumber;
-    static int currentIdNumber = 0;
+    private String id;
+    private String name;
+    protected Map<String,Integer> borrowed = new HashMap<>();
 
-    public Person(int idNum, String name, String address, int phoneNumber) {
-        currentIdNumber++;
-        if (idNum == -1) {
-            this.id = currentIdNumber;
-        } else {
-            this.id = idNum;
-        }
-
-        this.password = Integer.toString(id);
+    public Person(String id, String name) {
+        this.id   = id;
         this.name = name;
-        this.address = address;
-        this.phoneNumber = phoneNumber;
     }
 
-    /**
-     * printInfo of Person.
-     */
-    public void printInfo() {
+    public String getId()   { return id; }
+    public String getName() { return name; }
 
+    public void borrow(String bookId) {
+        borrowed.put(bookId, borrowed.getOrDefault(bookId, 0) + 1);
     }
 
-    /**
-     * Setter function.
-     */
-    public void setAddress(String a) {
-        this.address = a;
+    public boolean returnBook(String bookId) {
+        Integer cnt = borrowed.get(bookId);
+        if (cnt == null || cnt == 0) return false;
+        if (cnt == 1) borrowed.remove(bookId);
+        else          borrowed.put(bookId, cnt - 1);
+        return true;
     }
 
-    public void setPhoneNumber(int p) {
-        this.phoneNumber = p;
+    public String borrowedInfo() {
+        if (borrowed.isEmpty()) return "  (no books)";
+        StringBuilder sb = new StringBuilder();
+        borrowed.forEach((bId,cnt) ->
+                sb.append(String.format("  - %s ×%d%n", bId, cnt))
+        );
+        return sb.toString();
     }
 
-    public void setName(String n) {
-        this.name = n;
-    }
-
-    /**
-     * Getter function.
-     */
-    public String getName() {
-        return this.name;
-    }
-
-    public String getPassword() {
-        return this.password;
-    }
-
-    public String getAddress() {
-        return this.address;
-    }
-
-    public int getPhoneNumber() {
-        return this.phoneNumber;
-    }
-
-    public int getId() {
-        return this.id;
+    @Override
+    public String toString() {
+        return String.format("[%s] %s%nBorrowed:%n%s",
+                id, name, borrowedInfo());
     }
 }
