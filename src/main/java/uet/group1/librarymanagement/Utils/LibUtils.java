@@ -5,13 +5,15 @@ import uet.group1.librarymanagement.Entities.Borrower;
 import uet.group1.librarymanagement.Exceptions.BookNotFoundException;
 import uet.group1.librarymanagement.Exceptions.InvalidInputException;
 import uet.group1.librarymanagement.Exceptions.NotBorrowedException;
-import uet.group1.librarymanagement.Exceptions.OutOfStockException;
 import uet.group1.librarymanagement.Exceptions.UserNotFoundException;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 
 /**
  * Utility class for managing library operations:
@@ -20,17 +22,14 @@ import java.util.Map;
  * - borrow & return
  */
 public class LibUtils {
-    private final Map<String, Book>    books     = new HashMap<>();
+    private final Map<Integer, Book>    books     = new HashMap<>();
     private final Map<String, Borrower> borrowers = new HashMap<>();
 
     /**
-     * Adds a new book to the library.
-     *
-     * @param book the Book to add
-     * @return true if added; false if null or ID already exists
+     * Adds a new book. Book ID must be > 0 and not exist.
      */
     public boolean addBook(Book book) {
-        if (book == null || books.containsKey(book.getId())) {
+        if (book == null || book.getId() <= 0 || books.containsKey(book.getId())) {
             return false;
         }
         books.put(book.getId(), book);
@@ -39,50 +38,40 @@ public class LibUtils {
 
     /**
      * Removes a book by its ID.
-     *
-     * @param bookId the ID of the book to remove
-     * @return true if removed; false if not found
      */
-    public boolean removeBook(String bookId) {
+    public boolean removeBook(int bookId) {
         return books.remove(bookId) != null;
     }
 
     /**
-     * Updates an existing book's data.
-     *
-     * @param bookId   the ID of the book
-     * @param title    new title
-     * @param author   new author
-     * @param quantity new available quantity
-     * @return true if updated; false if book not found
+     * Updates an existing book (matching by ID).
      */
-    public boolean updateBook(String bookId, String title, String author, int quantity) {
-        Book book = books.get(bookId);
-        if (book == null) {
+    public boolean updateBook(Book updated) {
+        if (updated == null || !books.containsKey(updated.getId())) {
             return false;
         }
-        book.setTitle(title);
-        book.setAuthor(author);
-        book.setQuantity(quantity);
+        books.put(updated.getId(), updated);
         return true;
     }
 
     /**
-     * Finds books whose title or author contains the keyword (case-insensitive).
-     *
-     * @param keyword the search term
-     * @return list of matching books (empty if none or if keyword is null/empty)
+     * Searches books by title, author, or genre (case-insensitive).
      */
     public List<Book> findBooks(String keyword) {
-        List<Book> result = new ArrayList<>();
         if (keyword == null || keyword.trim().isEmpty()) {
-            return result;
+            return Collections.emptyList();
         }
         String kw = keyword.trim().toLowerCase();
-        for (Book book : books.values()) {
-            if (book.getTitle().toLowerCase().contains(kw)
-                    || book.getAuthor().toLowerCase().contains(kw)) {
-                result.add(book);
+        List<Book> result = new ArrayList<>();
+        for (Book b : books.values()) {
+            boolean match = b.getTitle().toLowerCase().contains(kw)
+                    || b.getAuthor().toLowerCase().contains(kw);
+            String genre = b.getGenre();
+            if (!match && genre != null && genre.toLowerCase().contains(kw)) {
+                match = true;
+            }
+            if (match) {
+                result.add(b);
             }
         }
         return result;
@@ -96,17 +85,47 @@ public class LibUtils {
             System.out.println("No books in library.");
             return;
         }
-        books.values().forEach(book -> System.out.println("  " + book));
+        getBooks(0, books.size()).forEach(b -> System.out.println("  " + b));
     }
 
     /**
-     * Adds a new borrower to the system.
-     *
-     * @param borrower the Borrower to add
-     * @return true if added; false if null or ID already exists
+     * Returns total number of books.
+     */
+    public int getTotalBooks() {
+        return books.size();
+    }
+
+    /**
+     * Returns a sublist of books sorted by ID, starting at index start (0-based),
+     * up to count elements.
+     */
+    public List<Book> getBooks(int start, int count) {
+        List<Book> sorted = new ArrayList<>(books.values());
+        sorted.sort(Comparator.comparingInt(Book::getId));
+        if (start < 0 || start >= sorted.size()) {
+            return Collections.emptyList();
+        }
+        int end = Math.min(start + count, sorted.size());
+        return sorted.subList(start, end);
+    }
+
+    /**
+     * Displays a subset of books from start index, up to count elements.
+     */
+    public void displayBooks(int start, int count) {
+        List<Book> subset = getBooks(start, count);
+        if (subset.isEmpty()) {
+            System.out.println("No books to display.");
+            return;
+        }
+        subset.forEach(b -> System.out.println("  " + b));
+    }
+
+    /**
+     * Adds a new borrower.
      */
     public boolean addBorrower(Borrower borrower) {
-        if (borrower == null || borrowers.containsKey(borrower.getId())) {
+        if (borrower == null || isNullOrEmpty(borrower.getId()) || borrowers.containsKey(borrower.getId())) {
             return false;
         }
         borrowers.put(borrower.getId(), borrower);
@@ -114,9 +133,7 @@ public class LibUtils {
     }
 
     /**
-     * Displays information about a borrower by their ID.
-     *
-     * @param borrowerId the ID of the borrower
+     * Displays borrower information by ID.
      */
     public void displayBorrowerInfo(String borrowerId) {
         Borrower b = borrowers.get(borrowerId);
@@ -128,82 +145,52 @@ public class LibUtils {
     }
 
     /**
-     * Borrows a book for a borrower.
-     *
-     * @param borrowerId the borrower's ID
-     * @param bookId     the book's ID
-     * @throws InvalidInputException if any ID is null or empty
-     * @throws UserNotFoundException if borrower does not exist
-     * @throws BookNotFoundException if book does not exist
-     * @throws OutOfStockException   if no copies are available
+     * Records borrowing a book by a borrower.
      */
-    public void borrowBook(String borrowerId, String bookId)
+    public void borrowBook(String borrowerId, int bookId)
             throws InvalidInputException,
             UserNotFoundException,
-            BookNotFoundException,
-            OutOfStockException {
-
-        if (isNullOrEmpty(borrowerId) || isNullOrEmpty(bookId)) {
-            throw new InvalidInputException("Borrower ID and Book ID must not be empty.");
+            BookNotFoundException {
+        if (isNullOrEmpty(borrowerId)) {
+            throw new InvalidInputException("Borrower ID must not be empty.");
         }
-
-        Borrower b = borrowers.get(borrowerId);
-        if (b == null) {
+        Borrower br = borrowers.get(borrowerId);
+        if (br == null) {
             throw new UserNotFoundException(borrowerId);
         }
-
-        Book book = books.get(bookId);
-        if (book == null) {
-            throw new BookNotFoundException(bookId);
+        Book bk = books.get(bookId);
+        if (bk == null) {
+            throw new BookNotFoundException(String.valueOf(bookId));
         }
-
-        if (book.getQuantity() <= 0) {
-            throw new OutOfStockException(bookId);
-        }
-
-        book.setQuantity(book.getQuantity() - 1);
-        b.borrow(bookId);
+        br.borrow(bookId);
     }
 
     /**
-     * Returns a book from a borrower.
-     *
-     * @param borrowerId the borrower's ID
-     * @param bookId     the book's ID
-     * @throws InvalidInputException  if any ID is null or empty
-     * @throws UserNotFoundException  if borrower does not exist
-     * @throws BookNotFoundException  if book does not exist
-     * @throws NotBorrowedException   if borrower did not borrow this book
+     * Records returning a book by a borrower.
      */
-    public void returnBook(String borrowerId, String bookId)
+    public void returnBook(String borrowerId, int bookId)
             throws InvalidInputException,
             UserNotFoundException,
             BookNotFoundException,
             NotBorrowedException {
-
-        if (isNullOrEmpty(borrowerId) || isNullOrEmpty(bookId)) {
-            throw new InvalidInputException("Borrower ID and Book ID must not be empty.");
+        if (isNullOrEmpty(borrowerId)) {
+            throw new InvalidInputException("Borrower ID must not be empty.");
         }
-
-        Borrower b = borrowers.get(borrowerId);
-        if (b == null) {
+        Borrower br = borrowers.get(borrowerId);
+        if (br == null) {
             throw new UserNotFoundException(borrowerId);
         }
-
-        Book book = books.get(bookId);
-        if (book == null) {
-            throw new BookNotFoundException(bookId);
+        Book bk = books.get(bookId);
+        if (bk == null) {
+            throw new BookNotFoundException(String.valueOf(bookId));
         }
-
-        if (!b.returnBook(bookId)) {
-            throw new NotBorrowedException(bookId);
+        if (!br.returnBook(bookId)) {
+            throw new NotBorrowedException(String.valueOf(bookId));
         }
-
-        book.setQuantity(book.getQuantity() + 1);
     }
 
     /**
-     * Helper: check for null or empty (after trim).
+     * Helper: check for null or empty string.
      */
     private boolean isNullOrEmpty(String s) {
         return s == null || s.trim().isEmpty();

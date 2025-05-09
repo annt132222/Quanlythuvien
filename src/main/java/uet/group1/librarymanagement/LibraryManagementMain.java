@@ -51,14 +51,51 @@ public class LibraryManagementMain {
 
     private static void addBook() {
         System.out.print("  ID: ");
-        String id = sc.nextLine();
-        System.out.print("  Title: ");
-        String title = sc.nextLine();
+        int id = Integer.parseInt(sc.nextLine());
         System.out.print("  Author: ");
         String author = sc.nextLine();
-        System.out.print("  Quantity: ");
-        int qty = Integer.parseInt(sc.nextLine());
-        if (lib.addBook(new Book(id, title, author, qty))) {
+        System.out.print("  Format: ");
+        String bookFormat = sc.nextLine();
+        System.out.print("  Description: ");
+        String description = sc.nextLine();
+        System.out.print("  Genre: ");
+        String genre = sc.nextLine();
+        System.out.print("  Image URL: ");
+        String imgUrl = sc.nextLine();
+        System.out.print("  ISBN: ");
+        String isbn = sc.nextLine();
+        System.out.print("  ISBN13: ");
+        String isbn13 = sc.nextLine();
+        System.out.print("  Link: ");
+        String link = sc.nextLine();
+        System.out.print("  Pages: ");
+        int pages = Integer.parseInt(sc.nextLine());
+        System.out.print("  Rating: ");
+        java.math.BigDecimal rating = new java.math.BigDecimal(sc.nextLine());
+        System.out.print("  Reviews: ");
+        int reviews = Integer.parseInt(sc.nextLine());
+        System.out.print("  Title: ");
+        String title = sc.nextLine();
+        System.out.print("  Total Ratings: ");
+        int totalRatings = Integer.parseInt(sc.nextLine());
+
+        Book book = new Book(
+                id,
+                author,
+                bookFormat,
+                description,
+                genre,
+                imgUrl,
+                isbn,
+                isbn13,
+                link,
+                pages,
+                rating,
+                reviews,
+                title,
+                totalRatings
+        );
+        if (lib.addBook(book)) {
             System.out.println("  Book added.");
         } else {
             System.out.println("  ID already exists or invalid.");
@@ -67,7 +104,7 @@ public class LibraryManagementMain {
 
     private static void removeBook() {
         System.out.print("  Book ID: ");
-        if (lib.removeBook(sc.nextLine())) {
+        if (lib.removeBook(sc.nextInt())) {
             System.out.println("  Book removed.");
         } else {
             System.out.println("  Book not found.");
@@ -76,17 +113,55 @@ public class LibraryManagementMain {
 
     private static void updateBook() {
         System.out.print("  Book ID: ");
-        String id = sc.nextLine();
-        System.out.print("  New title: ");
-        String title = sc.nextLine();
-        System.out.print("  New author: ");
+        int id = Integer.parseInt(sc.nextLine());
+        System.out.print("  Author: ");
         String author = sc.nextLine();
-        System.out.print("  New quantity: ");
-        int qty = Integer.parseInt(sc.nextLine());
-        if (lib.updateBook(id, title, author, qty)) {
+        System.out.print("  Format: ");
+        String bookFormat = sc.nextLine();
+        System.out.print("  Description: ");
+        String description = sc.nextLine();
+        System.out.print("  Genre: ");
+        String genre = sc.nextLine();
+        System.out.print("  Image URL: ");
+        String imgUrl = sc.nextLine();
+        System.out.print("  ISBN: ");
+        String isbn = sc.nextLine();
+        System.out.print("  ISBN13: ");
+        String isbn13 = sc.nextLine();
+        System.out.print("  Link: ");
+        String link = sc.nextLine();
+        System.out.print("  Pages: ");
+        int pages = Integer.parseInt(sc.nextLine());
+        System.out.print("  Rating: ");
+        java.math.BigDecimal rating = new java.math.BigDecimal(sc.nextLine());
+        System.out.print("  Reviews: ");
+        int reviews = Integer.parseInt(sc.nextLine());
+        System.out.print("  Title: ");
+        String title = sc.nextLine();
+        System.out.print("  Total Ratings: ");
+        int totalRatings = Integer.parseInt(sc.nextLine());
+
+        Book updated = new Book(
+                id,
+                author,
+                bookFormat,
+                description,
+                genre,
+                imgUrl,
+                isbn,
+                isbn13,
+                link,
+                pages,
+                rating,
+                reviews,
+                title,
+                totalRatings
+        );
+
+        if (lib.updateBook(updated)) {
             System.out.println("  Book updated.");
         } else {
-            System.out.println("  Book not found.");
+            System.out.println("  Book not found or invalid ID.");
         }
     }
 
@@ -117,14 +192,13 @@ public class LibraryManagementMain {
         System.out.print("  Borrower ID: ");
         String bid = sc.nextLine();
         System.out.print("  Book ID: ");
-        String bookId = sc.nextLine();
+        int bookId = sc.nextInt();
         try {
             lib.borrowBook(bid, bookId);
             System.out.println("  Borrow successful.");
         } catch (InvalidInputException |
                  UserNotFoundException |
-                 BookNotFoundException |
-                 OutOfStockException e) {
+                 BookNotFoundException e) {
             System.out.println("  ERROR: " + e.getMessage());
         }
     }
@@ -133,7 +207,7 @@ public class LibraryManagementMain {
         System.out.print("  Borrower ID: ");
         String bid = sc.nextLine();
         System.out.print("  Book ID: ");
-        String bookId = sc.nextLine();
+        int bookId = sc.nextInt();
         try {
             lib.returnBook(bid, bookId);
             System.out.println("  Return successful.");

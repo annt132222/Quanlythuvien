@@ -6,7 +6,7 @@ import java.util.Map;
 public abstract class Person {
     private String id;
     private String name;
-    protected Map<String,Integer> borrowed = new HashMap<>();
+    protected Map<Integer,Integer> borrowed = new HashMap<>();
 
     public Person(String id, String name) {
         this.id   = id;
@@ -16,11 +16,11 @@ public abstract class Person {
     public String getId()   { return id; }
     public String getName() { return name; }
 
-    public void borrow(String bookId) {
+    public void borrow(int bookId) {
         borrowed.put(bookId, borrowed.getOrDefault(bookId, 0) + 1);
     }
 
-    public boolean returnBook(String bookId) {
+    public boolean returnBook(int bookId) {
         Integer cnt = borrowed.get(bookId);
         if (cnt == null || cnt == 0) return false;
         if (cnt == 1) borrowed.remove(bookId);
