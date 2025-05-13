@@ -1,6 +1,5 @@
 package uet.group1.librarymanagement.dao;
 
-import uet.group1.librarymanagement.dao.BookDao;
 import uet.group1.librarymanagement.Entities.Book;
 import uet.group1.librarymanagement.Utils.ConnectorDB;
 
@@ -17,7 +16,9 @@ public class BookDaoImpl implements BookDao {
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return Optional.of(mapRow(rs));
+                if (rs.next()) {
+                    return Optional.of(mapRow(rs));
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -110,16 +111,34 @@ public class BookDaoImpl implements BookDao {
     }
 
     @Override
-    public List<Book> searchByTitleOrAuthor(String keyword) {
+    public List<Book> searchByTitle(String title) {
         List<Book> list = new ArrayList<>();
-        String sql = "SELECT * FROM books WHERE title LIKE ? OR author LIKE ? ORDER BY id";
+        String sql = "SELECT * FROM books WHERE title LIKE ? ORDER BY id";
         try (Connection c = ConnectorDB.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            String p = "%" + keyword + "%";
-            ps.setString(1, p);
-            ps.setString(2, p);
+            ps.setString(1, "%" + title + "%");
             try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) list.add(mapRow(rs));
+                while (rs.next()) {
+                    list.add(mapRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    @Override
+    public List<Book> searchByAuthor(String author) {
+        List<Book> list = new ArrayList<>();
+        String sql = "SELECT * FROM books WHERE author LIKE ? ORDER BY id";
+        try (Connection c = ConnectorDB.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, "%" + author + "%");
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapRow(rs));
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
