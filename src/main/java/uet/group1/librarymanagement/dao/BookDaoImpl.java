@@ -146,6 +146,23 @@ public class BookDaoImpl implements BookDao {
         return list;
     }
 
+    @Override
+    public Optional<Book> findByIsbn(String isbn) {
+        String sql = "SELECT * FROM books WHERE isbn = ? OR isbn13 = ?";
+        try (Connection c = ConnectorDB.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, isbn);
+            ps.setString(2, isbn);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(mapRow(rs));
+                }
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return Optional.empty();
+    }
+
+
     private Book mapRow(ResultSet rs) throws SQLException {
         return new Book(
                 rs.getInt("id"),

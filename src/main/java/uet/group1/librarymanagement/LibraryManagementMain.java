@@ -6,6 +6,7 @@ import uet.group1.librarymanagement.dao.UserDao;
 import uet.group1.librarymanagement.dao.BookDaoImpl;
 import uet.group1.librarymanagement.dao.UserDaoImpl;
 import uet.group1.librarymanagement.Entities.*;
+import uet.group1.librarymanagement.Service.BorrowService;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -16,6 +17,7 @@ public class LibraryManagementMain {
     private final Scanner sc = new Scanner(System.in);
     private final BookDao bookDao = new BookDaoImpl();
     private final UserDao userDao = new UserDaoImpl();
+    private final BorrowService borrowService = new BorrowService();
     private Person currentUser = null;
 
     public static void main(String[] args) {
@@ -128,6 +130,9 @@ public class LibraryManagementMain {
         System.out.println("[2] Search by Author");
         System.out.println("[3] Display All Books");
         System.out.println("[4] View Profile");
+        System.out.println("[5] Borrow Book by ISBN");
+        System.out.println("[6] Return Book by ISBN");
+        System.out.println("[7] View My Loans");
         System.out.println("[0] Logout");
         System.out.print("Select action: ");
         String cmd = sc.nextLine().trim();
@@ -136,6 +141,9 @@ public class LibraryManagementMain {
             case "2": searchByAuthor(); break;
             case "3": displayAllBooks();break;
             case "4": viewProfile();     break;
+            case "5": borrowBook();  break;
+            case "6": returnBook(); break;
+            case "7": listMyLoans();     break;
             case "0": currentUser = null; break;
             default: System.out.println("Invalid option.");
         }
@@ -374,5 +382,34 @@ public class LibraryManagementMain {
                 currentUser.getName(),
                 currentUser.getRole());
     }
+
+    private void borrowBook() {
+        System.out.print("  ISBN to borrow: ");
+        String isbn = sc.nextLine().trim();
+        boolean ok = borrowService.borrowByIsbn(currentUser.getId(), isbn);
+        System.out.println(ok ? "Borrow successful."
+                : "Borrow failed (invalid user/ISBN or already borrowed).");
+    }
+
+    private void returnBook() {
+        System.out.print("  ISBN to return: ");
+        String isbn = sc.nextLine().trim();
+        boolean ok = borrowService.returnByIsbn(currentUser.getId(), isbn);
+        System.out.println(ok ? "Return successful."
+                : "Return failed (invalid user/ISBN or not borrowed).");
+    }
+
+    private void listMyLoans() {
+        List<BorrowRecord> recs = borrowService.listCurrentLoans(currentUser.getId());
+        if (recs.isEmpty()) {
+            System.out.println("You have no borrowed books.");
+        } else {
+            recs.forEach(r -> System.out.printf(
+                    "Book ID: %d | Borrowed at: %s%n",
+                    r.getBookId(), r.getBorrowDate()
+            ));
+        }
+    }
+
 
 }
