@@ -57,7 +57,15 @@ public class UserDaoImpl implements UserDao {
             ps.setString(3, u.getPassword());
             ps.setString(4, u.getRole().name());
             return ps.executeUpdate() == 1;
-        } catch (SQLException e) { e.printStackTrace(); return false; }
+        }
+        catch (SQLIntegrityConstraintViolationException e) {
+            return false;
+        }
+        catch (SQLException e) {
+            // các lỗi SQL khác thì in log hoặc xử lý tùy ý
+            e.printStackTrace();
+            return false;
+        }
     }
 
     @Override
