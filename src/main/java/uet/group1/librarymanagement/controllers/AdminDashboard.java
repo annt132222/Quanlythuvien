@@ -4,237 +4,513 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import uet.group1.librarymanagement.Entities.Admin;
 import uet.group1.librarymanagement.Entities.Book;
+import uet.group1.librarymanagement.Entities.Borrower;
 import uet.group1.librarymanagement.Entities.Person;
 import uet.group1.librarymanagement.Service.AuthService;
 import uet.group1.librarymanagement.Service.BookService;
 import uet.group1.librarymanagement.Service.BorrowService;
 import uet.group1.librarymanagement.Service.UserService;
 
-import java.util.List;
+import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 /**
- * Admin dashboard: quản lý sách và tài khoản.
+ * Admin dashboard view (pure JavaFX, no FXML).
+ * Tabs for Books (with ISBN search) and Users, plus Logout button.
  */
 public final class AdminDashboard extends BorderPane {
+
     private final Stage        primaryStage;
     private final AuthService  authService;
     private final BookService  bookService;
-    private final UserService personService;
+    private final UserService  userService;
     private final BorrowService borrowService;
 
-    private final TableView<Book>   bookTable  = new TableView<>();
-    private final TableView<Person> userTable  = new TableView<>();
-    private final TextField         txtSearchTitle  = new TextField();
-    private final TextField         txtSearchAuthor = new TextField();
+    private final TableView<Book>   bookTable = new TableView<Book>();
+    private final TableView<Person> userTable = new TableView<Person>();
 
-    public AdminDashboard(Stage stage,
+    public AdminDashboard(Stage primaryStage,
                           AuthService authService,
                           BookService bookService,
-                          UserService personService,
+                          UserService userService,
                           BorrowService borrowService) {
-        this.primaryStage   = stage;
-        this.authService    = authService;
-        this.bookService    = bookService;
-        this.personService  = personService;
-        this.borrowService  = borrowService;
+        this.primaryStage  = primaryStage;
+        this.authService   = authService;
+        this.bookService   = bookService;
+        this.userService   = userService;
+        this.borrowService = borrowService;
+
+        setPadding(new Insets(10));
 
         // Header
         Label header = new Label("Admin Dashboard");
         header.setStyle("-fx-font-size:20px; -fx-font-weight:bold;");
         setTop(header);
         BorderPane.setAlignment(header, Pos.CENTER);
-        BorderPane.setMargin(header, new Insets(10));
 
         // Tabs
-        TabPane tabs = new TabPane();
-        tabs.getTabs().addAll(
-                new Tab("Books",    buildBooksPane()),
-                new Tab("Users",    buildUsersPane())
+        TabPane tabs = new TabPane(
+                new Tab("Books", buildBooksPane()),
+                new Tab("Users", buildUsersPane())
         );
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         setCenter(tabs);
+
+        // Logout at bottom-right
+        Button btnLogout = new Button("Logout");
+        btnLogout.setOnAction(e -> onLogout());
+        HBox logoutBox = new HBox(btnLogout);
+        logoutBox.setAlignment(Pos.BOTTOM_RIGHT);
+        logoutBox.setPadding(new Insets(5));
+        setBottom(logoutBox);
     }
 
-    private Node buildBooksPane() {
-        // 1) Search box
-        txtSearchTitle.setPromptText("Title keyword");
-        txtSearchAuthor.setPromptText("Author keyword");
-        Button btnSearchTitle  = new Button("Search Title");
-        Button btnSearchAuthor = new Button("Search Author");
+    private Parent buildBooksPane() {
+        // ISBN search bar
+        TextField isbnSearchField = new TextField();
+        isbnSearchField.setPromptText("Search by ISBN");
+        Button btnSearchIsbn = new Button("Search");
+        btnSearchIsbn.setOnAction(e -> {
+            String isbn = isbnSearchField.getText().trim();
+            if (isbn.isEmpty()) {
+                Alert warning = new Alert(Alert.AlertType.WARNING);
+                warning.setHeaderText(null);
+                warning.setContentText("Please enter IBSN code.");
+                warning.showAndWait();
+                return;
+            }
+            // nếu có nhập, thì thực hiện tìm
+            Optional<Book> ob = bookService.findByIsbn(isbn);
+            ObservableList<Book> list = FXCollections.observableArrayList();
+            ob.ifPresent(list::add);
+            bookTable.setItems(list);
+        });
         Button btnRefreshBooks = new Button("Refresh");
-        btnSearchTitle .setOnAction(e -> onSearchTitle());
-        btnSearchAuthor.setOnAction(e -> onSearchAuthor());
         btnRefreshBooks.setOnAction(e -> reloadBooks());
-        HBox searchBox = new HBox(5,
-                new Label("Title:"), txtSearchTitle, btnSearchTitle,
-                new Label("Author:"), txtSearchAuthor, btnSearchAuthor,
-                btnRefreshBooks
-        );
-        searchBox.setAlignment(Pos.CENTER_LEFT);
-        searchBox.setPadding(new Insets(5));
+        HBox searchBar = new HBox(5, isbnSearchField, btnSearchIsbn, btnRefreshBooks);
+        searchBar.setPadding(new Insets(5));
+        searchBar.setAlignment(Pos.CENTER_LEFT);
 
-        // 2) Book table
+        // Table columns
         bookTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        TableColumn<Book,Integer> colId     = new TableColumn<>("ID");
-        TableColumn<Book,String>  colTitle  = new TableColumn<>("Title");
-        TableColumn<Book,String>  colAuthor = new TableColumn<>("Author");
-        colId    .setCellValueFactory(new PropertyValueFactory<>("id"));
-        colTitle .setCellValueFactory(new PropertyValueFactory<>("title"));
-        colAuthor.setCellValueFactory(new PropertyValueFactory<>("author"));
-        bookTable.getColumns().setAll(colId, colTitle, colAuthor);
 
+        TableColumn<Book, String> coverCol = new TableColumn<Book, String>("Cover");
+        coverCol.setCellValueFactory(new PropertyValueFactory<Book, String>("imgUrl"));
+        coverCol.setCellFactory(col -> new TableCell<Book,String>() {
+            private final ImageView iv = new ImageView();
+            {
+                iv.setFitWidth(200);
+                iv.setFitHeight(200);
+                iv.setPreserveRatio(true);
+            }
+            @Override
+            protected void updateItem(String url, boolean empty) {
+                super.updateItem(url, empty);
+                if (empty || url == null || url.isEmpty()) {
+                    setGraphic(null);
+                } else {
+                    iv.setImage(new Image(url, true));
+                    setGraphic(iv);
+                }
+            }
+        });
+
+        TableColumn<Book, String> isbnCol   = new TableColumn<Book,String>("ISBN");
+        TableColumn<Book, String> titleCol  = new TableColumn<Book,String>("Title");
+        TableColumn<Book, String> authorCol = new TableColumn<Book,String>("Author");
+        TableColumn<Book, String> genreCol  = new TableColumn<Book,String>("Genre");
+
+        isbnCol  .setCellValueFactory(new PropertyValueFactory<Book, String>("isbn"));
+        titleCol .setCellValueFactory(new PropertyValueFactory<Book, String>("title"));
+        authorCol.setCellValueFactory(new PropertyValueFactory<Book, String>("author"));
+        genreCol .setCellValueFactory(new PropertyValueFactory<Book, String>("genre"));
+
+        for (TableColumn<?,?> col : java.util.Arrays.asList(
+                coverCol, isbnCol, titleCol, authorCol, genreCol)) {
+            col.setSortable(false);
+        }
+        bookTable.getColumns().setAll(
+                coverCol, isbnCol, titleCol, authorCol, genreCol
+        );
+        VBox.setVgrow(bookTable, Priority.ALWAYS);
         reloadBooks();
 
-        // 3) CRUD buttons
-        Button btnAdd    = new Button("Add");
-        Button btnUpdate = new Button("Update");
-        Button btnDelete = new Button("Delete");
+        // CRUD buttons
+        Button btnAdd    = new Button("Add Book");
+        Button btnUpdate = new Button("Update Book");
+        Button btnDelete = new Button("Delete Book");
+        btnAdd   .setOnAction(e -> onAddBook());
+        btnUpdate.setOnAction(e -> onUpdateBook());
+        btnDelete.setOnAction(e -> onDeleteBook());
         HBox btnBox = new HBox(10, btnAdd, btnUpdate, btnDelete);
         btnBox.setAlignment(Pos.CENTER);
         btnBox.setPadding(new Insets(5));
 
-        btnAdd   .setOnAction(e -> onAddBook());
-        btnUpdate.setOnAction(e -> onUpdateBook());
-        btnDelete.setOnAction(e -> onDeleteBook());
-
-        // 4) Compose
-        VBox v = new VBox(10, searchBox, bookTable, btnBox);
-        v.setPadding(new Insets(10));
-        return v;
+        return new VBox(10, searchBar, bookTable, btnBox);
     }
 
-    private Node buildUsersPane() {
-        // 1) User table
+    private Parent buildUsersPane() {
         userTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        TableColumn<Person,String> colUid   = new TableColumn<>("ID");
-        TableColumn<Person,String> colUname = new TableColumn<>("Name");
-        TableColumn<Person,String> colRole  = new TableColumn<>("Role");
-        colUid  .setCellValueFactory(new PropertyValueFactory<>("id"));
-        colUname.setCellValueFactory(new PropertyValueFactory<>("name"));
-        colRole .setCellValueFactory(new PropertyValueFactory<>("role"));
-        userTable.getColumns().setAll(colUid, colUname, colRole);
+
+        TableColumn<Person, String> idCol   = new TableColumn<Person,String>("ID");
+        TableColumn<Person, String> nameCol = new TableColumn<Person,String>("Name");
+        TableColumn<Person, String> roleCol = new TableColumn<Person,String>("Role");
+
+        idCol  .setCellValueFactory(new PropertyValueFactory<Person, String>("id"));
+        nameCol.setCellValueFactory(new PropertyValueFactory<Person, String>("name"));
+        roleCol.setCellValueFactory(new PropertyValueFactory<Person, String>("role"));
+
+        for (TableColumn<?,?> col : java.util.Arrays.asList(idCol, nameCol, roleCol)) {
+            col.setSortable(false);
+        }
+        userTable.getColumns().setAll(idCol, nameCol, roleCol);
+        VBox.setVgrow(userTable, Priority.ALWAYS);
         reloadUsers();
 
-        // 2) CRUD buttons
-        Button btnAddUser    = new Button("Add");
-        Button btnUpdateUser = new Button("Update");
-        Button btnDeleteUser = new Button("Delete");
-        Button btnRefreshUsr = new Button("Refresh");
-        HBox btnBox = new HBox(10, btnAddUser, btnUpdateUser, btnDeleteUser, btnRefreshUsr);
-        btnBox.setAlignment(Pos.CENTER);
-        btnBox.setPadding(new Insets(5));
-
+        Button btnAddUser    = new Button("Add User");
+        Button btnUpdateUser = new Button("Update User");
+        Button btnDeleteUser = new Button("Delete User");
         btnAddUser   .setOnAction(e -> onAddUser());
         btnUpdateUser.setOnAction(e -> onUpdateUser());
         btnDeleteUser.setOnAction(e -> onDeleteUser());
-        btnRefreshUsr.setOnAction(e -> reloadUsers());
+        HBox btnBox = new HBox(10, btnAddUser, btnUpdateUser, btnDeleteUser);
+        btnBox.setAlignment(Pos.CENTER);
+        btnBox.setPadding(new Insets(5));
 
-        // 3) Compose
-        VBox v = new VBox(10, userTable, btnBox);
-        v.setPadding(new Insets(10));
-        return v;
+        return new VBox(10, userTable, btnBox);
     }
 
-    // === Book handlers ===
-
     private void reloadBooks() {
-        List<Book> list = bookService.findAllBooks();
-        ObservableList<Book> data = FXCollections.observableArrayList(list);
+        ObservableList<Book> data =
+                FXCollections.observableArrayList(bookService.findAllBooks());
         bookTable.setItems(data);
     }
 
-    private void onSearchTitle() {
-        String kw = txtSearchTitle.getText().trim();
-        List<Book> list = bookService.searchByTitle(kw);
-        bookTable.setItems(FXCollections.observableArrayList(list));
-    }
-
-    private void onSearchAuthor() {
-        String kw = txtSearchAuthor.getText().trim();
-        List<Book> list = bookService.searchByAuthor(kw);
-        bookTable.setItems(FXCollections.observableArrayList(list));
+    private void reloadUsers() {
+        ObservableList<Person> data =
+                FXCollections.observableArrayList(userService.findAllUsers());
+        userTable.setItems(data);
     }
 
     private void onAddBook() {
-        // ví dụ: dùng TextInputDialog để hỏi Title; tương tự Author, ISBN...
-        TextInputDialog dlg = new TextInputDialog();
-        dlg.setHeaderText("Add new book");
-        dlg.setContentText("Title:");
-        dlg.showAndWait().ifPresent(title -> {
-            // thực ra nên có form đầy đủ, đây là ví dụ đơn giản
-            Book b = new Book(0, "", "", "", "", "", "", "", "", 0, null, 0, title, 0);
-            bookService.addBook(b);
-            reloadBooks();
+        Dialog<Book> dialog = new Dialog<Book>();
+        dialog.setTitle("Add New Book");
+        dialog.getDialogPane().getButtonTypes()
+                .addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        // Các field nhập liệu
+        TextField authorField       = new TextField();
+        TextField titleField        = new TextField();
+        TextField genreField        = new TextField();
+        TextField imgUrlField       = new TextField();
+        TextField isbnField         = new TextField();
+        TextField isbn13Field       = new TextField();
+        TextField formatField       = new TextField();
+        TextField descField         = new TextField();
+        TextField linkField         = new TextField();
+        TextField pagesField        = new TextField();
+        TextField ratingField       = new TextField();
+        TextField reviewsField      = new TextField();
+        TextField totalRatingsField = new TextField();
+
+        // Layout grid
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+        grid.add(new Label("Author:"),         0, 0); grid.add(authorField,       1, 0);
+        grid.add(new Label("Title:"),          0, 1); grid.add(titleField,        1, 1);
+        grid.add(new Label("Genre:"),          0, 2); grid.add(genreField,        1, 2);
+        grid.add(new Label("Cover URL:"),      0, 3); grid.add(imgUrlField,       1, 3);
+        grid.add(new Label("ISBN:"),           0, 4); grid.add(isbnField,         1, 4);
+        grid.add(new Label("ISBN13:"),         0, 5); grid.add(isbn13Field,       1, 5);
+        grid.add(new Label("Format:"),         0, 6); grid.add(formatField,       1, 6);
+        grid.add(new Label("Description:"),    0, 7); grid.add(descField,         1, 7);
+        grid.add(new Label("Link:"),           0, 8); grid.add(linkField,         1, 8);
+        grid.add(new Label("Pages:"),          0, 9); grid.add(pagesField,        1, 9);
+        grid.add(new Label("Rating (0.00):"),  0,10); grid.add(ratingField,       1,10);
+        grid.add(new Label("Reviews:"),        0,11); grid.add(reviewsField,      1,11);
+        grid.add(new Label("TotalRatings:"),   0,12); grid.add(totalRatingsField, 1,12);
+
+        dialog.getDialogPane().setContent(grid);
+
+        // Lấy nút OK và bind disable nếu bất kỳ field nào trống
+        Node okButton = dialog.getDialogPane().lookupButton(ButtonType.OK);
+        okButton.disableProperty().bind(
+                authorField.textProperty().isEmpty()
+                        .or(titleField.textProperty().isEmpty())
+                        .or(genreField.textProperty().isEmpty())
+                        .or(imgUrlField.textProperty().isEmpty())
+                        .or(isbnField.textProperty().isEmpty())
+                        .or(isbn13Field.textProperty().isEmpty())
+                        .or(formatField.textProperty().isEmpty())
+                        .or(descField.textProperty().isEmpty())
+                        .or(linkField.textProperty().isEmpty())
+                        .or(pagesField.textProperty().isEmpty())
+                        .or(ratingField.textProperty().isEmpty())
+                        .or(reviewsField.textProperty().isEmpty())
+                        .or(totalRatingsField.textProperty().isEmpty())
+        );
+
+        dialog.setResultConverter(btn -> {
+            if (btn == ButtonType.OK) {
+                try {
+                    return new Book(
+                            0,
+                            authorField.getText().trim(),
+                            formatField.getText().trim(),
+                            descField.getText().trim(),
+                            genreField.getText().trim(),
+                            imgUrlField.getText().trim(),
+                            isbnField.getText().trim(),
+                            isbn13Field.getText().trim(),
+                            linkField.getText().trim(),
+                            Integer.parseInt(pagesField.getText().trim()),
+                            new java.math.BigDecimal(ratingField.getText().trim()),
+                            Integer.parseInt(reviewsField.getText().trim()),
+                            titleField.getText().trim(),
+                            Integer.parseInt(totalRatingsField.getText().trim())
+                    );
+                } catch (Exception ex) {
+                    return null;
+                }
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(book -> {
+            boolean success = bookService.addBook(book);
+            Alert alert = new Alert(success
+                    ? Alert.AlertType.INFORMATION
+                    : Alert.AlertType.ERROR
+            );
+            alert.setHeaderText(null);
+            alert.setContentText(success
+                    ? "Book added successfully."
+                    : "Failed to add book."
+            );
+            alert.showAndWait();
+            if (success) {
+                reloadBooks();
+            }
         });
     }
 
     private void onUpdateBook() {
-        Book sel = bookTable.getSelectionModel().getSelectedItem();
-        if (sel == null) { alert("Select a book first."); return; }
-        TextInputDialog dlg = new TextInputDialog(sel.getTitle());
-        dlg.setHeaderText("Update book title");
-        dlg.setContentText("New Title:");
-        dlg.showAndWait().ifPresent(newTitle -> {
-            sel.setTitle(newTitle);
-            bookService.updateBook(sel);
-            reloadBooks();
+        Book selected = bookTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            new Alert(Alert.AlertType.WARNING, "Select a book first.").showAndWait();
+            return;
+        }
+        Dialog<Book> dialog = new Dialog<Book>();
+        dialog.setTitle("Update Book");
+        dialog.getDialogPane().getButtonTypes()
+                .addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        TextField authorField       = new TextField(selected.getAuthor());
+        TextField titleField        = new TextField(selected.getTitle());
+        TextField genreField        = new TextField(selected.getGenre());
+        TextField imgUrlField       = new TextField(selected.getImgUrl());
+        TextField isbnField         = new TextField(selected.getIsbn());
+        TextField isbn13Field       = new TextField(selected.getIsbn13());
+        TextField formatField       = new TextField(selected.getBookFormat());
+        TextField descField         = new TextField(selected.getDescription());
+        TextField linkField         = new TextField(selected.getLink());
+        TextField pagesField        = new TextField(String.valueOf(selected.getPages()));
+        TextField ratingField       = new TextField(selected.getRating().toString());
+        TextField reviewsField      = new TextField(String.valueOf(selected.getReviews()));
+        TextField totalRatingsField = new TextField(String.valueOf(selected.getTotalRatings()));
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10); grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+        grid.add(new Label("Author:"),        0,0); grid.add(authorField,      1,0);
+        grid.add(new Label("Title:"),         0,1); grid.add(titleField,       1,1);
+        grid.add(new Label("Genre:"),         0,2); grid.add(genreField,       1,2);
+        grid.add(new Label("Cover URL:"),     0,3); grid.add(imgUrlField,      1,3);
+        grid.add(new Label("ISBN:"),          0,4); grid.add(isbnField,        1,4);
+        grid.add(new Label("ISBN13:"),        0,5); grid.add(isbn13Field,      1,5);
+        grid.add(new Label("Format:"),        0,6); grid.add(formatField,      1,6);
+        grid.add(new Label("Description:"),   0,7); grid.add(descField,        1,7);
+        grid.add(new Label("Link:"),          0,8); grid.add(linkField,        1,8);
+        grid.add(new Label("Pages:"),         0,9); grid.add(pagesField,       1,9);
+        grid.add(new Label("Rating:"),        0,10);grid.add(ratingField,      1,10);
+        grid.add(new Label("Reviews:"),       0,11);grid.add(reviewsField,     1,11);
+        grid.add(new Label("TotalRatings:"),  0,12);grid.add(totalRatingsField,1,12);
+
+        Node okButton = dialog.getDialogPane().lookupButton(ButtonType.OK);
+        okButton.disableProperty().bind(
+                titleField.textProperty().isEmpty()
+                        .or(authorField.textProperty().isEmpty())
+        );
+
+        dialog.getDialogPane().setContent(grid);
+        dialog.setResultConverter(btn -> {
+            if (btn == ButtonType.OK) {
+                try {
+                    return new Book(
+                            selected.getId(),
+                            authorField.getText().trim(),
+                            formatField.getText().trim(),
+                            descField.getText().trim(),
+                            genreField.getText().trim(),
+                            imgUrlField.getText().trim(),
+                            isbnField.getText().trim(),
+                            isbn13Field.getText().trim(),
+                            linkField.getText().trim(),
+                            Integer.parseInt(pagesField.getText().trim()),
+                            new BigDecimal(ratingField.getText().trim()),
+                            Integer.parseInt(reviewsField.getText().trim()),
+                            titleField.getText().trim(),
+                            Integer.parseInt(totalRatingsField.getText().trim())
+                    );
+                } catch (Exception ex) {
+                    return null;
+                }
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(book -> {
+            boolean success = bookService.updateBook(book);
+            Alert alert = new Alert(success
+                    ? Alert.AlertType.INFORMATION
+                    : Alert.AlertType.ERROR
+            );
+            alert.setHeaderText(null);
+            alert.setContentText(success
+                    ? "Book updated."
+                    : "Failed to update book."
+            );
+            alert.showAndWait();
+            if (success) reloadBooks();
         });
     }
 
     private void onDeleteBook() {
-        Book sel = bookTable.getSelectionModel().getSelectedItem();
-        if (sel == null) { alert("Select a book first."); return; }
-        bookService.deleteBook(sel.getId());
-        reloadBooks();
-    }
-
-    // === User handlers ===
-
-    private void reloadUsers() {
-        List<Person> list = personService.findAllUsers();
-        userTable.setItems(FXCollections.observableArrayList(list));
+        Book selected = bookTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            new Alert(Alert.AlertType.WARNING, "Select a book first.").showAndWait();
+            return;
+        }
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setHeaderText(null);
+        confirm.setContentText("Delete \"" + selected.getTitle() + "\"?");
+        confirm.showAndWait().filter(ButtonType.OK::equals).ifPresent(b -> {
+            boolean success = bookService.deleteBook(selected.getId());
+            Alert alert = new Alert(success
+                    ? Alert.AlertType.INFORMATION
+                    : Alert.AlertType.ERROR
+            );
+            alert.setHeaderText(null);
+            alert.setContentText(success
+                    ? "Book deleted."
+                    : "Failed to delete book."
+            );
+            alert.showAndWait();
+            if (success) reloadBooks();
+        });
     }
 
     private void onAddUser() {
-        Dialog<Person> dlg = new Dialog<>();
-        dlg.setHeaderText("Add new user");
-        // TODO: xây form nhập id, name, password, role; rồi dlg.showAndWait()
-        // giả sử userService.register(...) rồi reloadUsers()
+        Dialog<Person> dlg = new Dialog<Person>();
+        dlg.setTitle("Add User");
+        dlg.getDialogPane().getButtonTypes()
+                .addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        TextField idFld      = new TextField();
+        TextField nameFld    = new TextField();
+        PasswordField pwdFld = new PasswordField();
+        ComboBox<Person.Role> roleBox = new ComboBox<Person.Role>();
+        roleBox.getItems().addAll(Person.Role.BORROWER, Person.Role.ADMIN);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10); grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+        grid.add(new Label("ID:"),     0,0); grid.add(idFld,   1,0);
+        grid.add(new Label("Name:"),   0,1); grid.add(nameFld, 1,1);
+        grid.add(new Label("Password:"),0,2); grid.add(pwdFld,  1,2);
+        grid.add(new Label("Role:"),   0,3); grid.add(roleBox, 1,3);
+
+        Node ok = dlg.getDialogPane().lookupButton(ButtonType.OK);
+        ok.disableProperty().bind(
+                idFld.textProperty().isEmpty()
+                        .or(nameFld.textProperty().isEmpty())
+                        .or(pwdFld.textProperty().isEmpty())
+                        .or(roleBox.valueProperty().isNull())
+        );
+
+        dlg.getDialogPane().setContent(grid);
+        dlg.setResultConverter(b -> {
+            if (b == ButtonType.OK) {
+                if (roleBox.getValue() == Person.Role.ADMIN) {
+                    return new Admin(idFld.getText(), nameFld.getText(), pwdFld.getText());
+                } else {
+                    return new Borrower(idFld.getText(), nameFld.getText(), pwdFld.getText());
+                }
+            }
+            return null;
+        });
+
+        dlg.showAndWait().ifPresent(user -> {
+            boolean success = userService.addUser(user);
+            Alert a = new Alert(success ? Alert.AlertType.INFORMATION : Alert.AlertType.ERROR);
+            a.setHeaderText(null);
+            a.setContentText(success ? "User added." : "Failed: ID exists.");
+            a.showAndWait();
+            if (success) reloadUsers();
+        });
     }
 
     private void onUpdateUser() {
         Person sel = userTable.getSelectionModel().getSelectedItem();
-        if (sel == null) { alert("Select a user first."); return; }
+        if (sel == null) {
+            new Alert(Alert.AlertType.WARNING, "Select a user first.").showAndWait();
+            return;
+        }
         TextInputDialog dlg = new TextInputDialog(sel.getName());
-        dlg.setHeaderText("Update user name");
-        dlg.setContentText("New Name:");
+        dlg.setHeaderText("Update Name");
+        dlg.setContentText("New name:");
         dlg.showAndWait().ifPresent(newName -> {
             sel.setName(newName);
-            personService.updateUser(sel);
-            reloadUsers();
+            boolean success = userService.updateUser(sel);
+            Alert a = new Alert(success ? Alert.AlertType.INFORMATION : Alert.AlertType.ERROR);
+            a.setHeaderText(null);
+            a.setContentText(success ? "User updated." : "Failed to update.");
+            a.showAndWait();
+            if (success) reloadUsers();
         });
     }
 
     private void onDeleteUser() {
         Person sel = userTable.getSelectionModel().getSelectedItem();
-        if (sel == null) { alert("Select a user first."); return; }
-        personService.deleteUser(sel.getId());
-        reloadUsers();
+        if (sel == null) {
+            new Alert(Alert.AlertType.WARNING, "Select a user first.").showAndWait();
+            return;
+        }
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setHeaderText(null);
+        confirm.setContentText("Delete user \"" + sel.getName() + "\"?");
+        confirm.showAndWait().filter(ButtonType.OK::equals).ifPresent(b -> {
+            boolean success = userService.deleteUser(sel.getId());
+            Alert a = new Alert(success ? Alert.AlertType.INFORMATION : Alert.AlertType.ERROR);
+            a.setHeaderText(null);
+            a.setContentText(success ? "User deleted." : "Failed to delete.");
+            a.showAndWait();
+            if (success) reloadUsers();
+        });
     }
-
-    private void alert(String msg) {
-        new Alert(Alert.AlertType.WARNING, msg).showAndWait();
-    }
-
-    // === Logout ===
 
     private void onLogout() {
         authService.logout();
@@ -242,145 +518,10 @@ public final class AdminDashboard extends BorderPane {
                 primaryStage,
                 authService,
                 bookService,
-                personService,
+                userService,
                 borrowService
         );
         primaryStage.getScene().setRoot(login);
     }
 }
 
-
-//package uet.group1.librarymanagement.controllers;
-//
-//import javafx.collections.FXCollections;
-//import javafx.collections.ObservableList;
-//import javafx.geometry.Insets;
-//import javafx.geometry.Pos;
-//import javafx.scene.Parent;
-//import javafx.scene.control.*;
-//import javafx.scene.control.cell.PropertyValueFactory;
-//import javafx.scene.layout.HBox;
-//import javafx.scene.layout.VBox;
-//import javafx.stage.Stage;
-//import uet.group1.librarymanagement.Entities.Book;
-//import uet.group1.librarymanagement.Entities.Person;
-//import uet.group1.librarymanagement.Service.AuthService;
-//import uet.group1.librarymanagement.Service.BookService;
-//import uet.group1.librarymanagement.Service.BorrowService;
-//import uet.group1.librarymanagement.Service.UserService;
-//
-///**
-// * Admin dashboard view (Java-only, no FXML).
-// * Shows a table of books and allows adding books,
-// * deleting user accounts (cascade deletes borrow history),
-// * and logging out.
-// */
-//public final class AdminDashboard extends VBox {
-//
-//    private final Stage primaryStage;
-//    private final AuthService authService;
-//    private final BookService bookService;
-//    private final UserService personService;
-//    private final BorrowService borrowService;
-//    private final TableView<Book> bookTable;
-//
-//    public AdminDashboard(Stage primaryStage,
-//                          AuthService authService,
-//                          BookService bookService,
-//                          UserService personService,
-//                          BorrowService borrowService) {
-//        this.primaryStage   = primaryStage;
-//        this.authService    = authService;
-//        this.bookService    = bookService;
-//        this.personService  = personService;
-//        this.borrowService  = borrowService;
-//
-//        setSpacing(10);
-//        setPadding(new Insets(10));
-//
-//        Label headerLabel = new Label("Admin Dashboard");
-//        headerLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
-//
-//        bookTable = createBookTable();
-//        reloadBooks();
-//
-//        HBox buttonBox = createButtonBox();
-//
-//        getChildren().addAll(headerLabel, bookTable, buttonBox);
-//    }
-//
-//    private TableView<Book> createBookTable() {
-//        TableView<Book> table = new TableView<>();
-//        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-//
-//        TableColumn<Book, Integer> idColumn = new TableColumn<>("ID");
-//        idColumn.setCellValueFactory(new PropertyValueFactory<>("id"));
-//
-//        TableColumn<Book, String> titleColumn = new TableColumn<>("Title");
-//        titleColumn.setCellValueFactory(new PropertyValueFactory<>("title"));
-//
-//        TableColumn<Book, String> authorColumn = new TableColumn<>("Author");
-//        authorColumn.setCellValueFactory(new PropertyValueFactory<>("author"));
-//
-//        table.getColumns().addAll(idColumn, titleColumn, authorColumn);
-//        return table;
-//    }
-//
-//    private HBox createButtonBox() {
-//        Button addBookButton = new Button("Add Book");
-//        addBookButton.setOnAction(e -> onAddBook());
-//
-//        Button deleteAccountButton = new Button("Delete Account");
-//        deleteAccountButton.setOnAction(e -> onDeleteAccount());
-//
-//        Button logoutButton = new Button("Logout");
-//        logoutButton.setOnAction(e -> onLogout());
-//
-//        HBox box = new HBox(10, addBookButton, deleteAccountButton, logoutButton);
-//        box.setAlignment(Pos.CENTER);
-//        return box;
-//    }
-//
-//    private void reloadBooks() {
-//        ObservableList<Book> books = FXCollections
-//                .observableArrayList(bookService.findAllBooks());
-//        bookTable.setItems(books);
-//    }
-//
-//    private void onAddBook() {
-//        // TODO: show an input dialog or new window to collect book details,
-//        // then call bookService.addBook(...)
-//        // For now we simply reload the table
-//        reloadBooks();
-//    }
-//
-//    private void onDeleteAccount() {
-//        TextInputDialog dialog = new TextInputDialog();
-//        dialog.setTitle("Delete User Account");
-//        dialog.setHeaderText("Delete User Account");
-//        dialog.setContentText("Enter Person ID:");
-//        dialog.showAndWait().ifPresent(id -> {
-//            boolean success = personService.deleteUser(id);
-//            Alert alert = new Alert(success
-//                    ? Alert.AlertType.INFORMATION
-//                    : Alert.AlertType.ERROR);
-//            alert.setHeaderText(null);
-//            alert.setContentText(success
-//                    ? "Account deleted."
-//                    : "Cannot delete account (active loans or not found).");
-//            alert.showAndWait();
-//        });
-//    }
-//
-//    private void onLogout() {
-//        authService.logout();
-//        Parent loginScreen = new LoginScreen(
-//                primaryStage,
-//                authService,
-//                bookService,
-//                personService,
-//                borrowService
-//        );
-//        primaryStage.getScene().setRoot(loginScreen);
-//    }
-//}

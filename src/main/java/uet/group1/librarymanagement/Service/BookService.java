@@ -7,9 +7,6 @@ import uet.group1.librarymanagement.Entities.Book;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Xử lý nghiệp vụ CRUD và tìm kiếm sách.
- */
 public class BookService {
     private final BookDao bookDao = new BookDaoImpl();
 

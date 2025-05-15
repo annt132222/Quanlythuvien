@@ -8,9 +8,6 @@ import uet.group1.librarymanagement.Entities.Person;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Xử lý CRUD tài khoản người dùng (Borrower, Admin).
- */
 public class UserService {
     private final UserDao userDao = new UserDaoImpl();
 

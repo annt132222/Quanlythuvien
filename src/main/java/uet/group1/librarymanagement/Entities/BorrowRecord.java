@@ -2,9 +2,6 @@ package uet.group1.librarymanagement.Entities;
 
 import java.time.LocalDateTime;
 
-/**
- * Entity representing a borrow record: when a user borrows a book and when they return it.
- */
 public class BorrowRecord {
     private int id;
     private String userId;

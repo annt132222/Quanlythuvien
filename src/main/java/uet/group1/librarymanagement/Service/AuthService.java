@@ -6,9 +6,6 @@ import uet.group1.librarymanagement.Entities.Person;
 
 import java.util.Optional;
 
-/**
- * Xử lý đăng nhập, đăng ký và quản lý phiên người dùng.
- */
 public class AuthService {
     private final UserDao userDao = new UserDaoImpl();
     private Person currentUser;

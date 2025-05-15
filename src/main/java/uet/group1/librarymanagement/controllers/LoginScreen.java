@@ -13,9 +13,6 @@ import uet.group1.librarymanagement.Service.BookService;
 import uet.group1.librarymanagement.Service.UserService;
 import uet.group1.librarymanagement.Service.BorrowService;
 
-/**
- * A pure-JavaFX login screen (no FXML), updated for Java 8 optional and Person interface.
- */
 public class LoginScreen extends VBox {
 
     private final Stage primaryStage;
@@ -43,16 +40,13 @@ public class LoginScreen extends VBox {
         setSpacing(10);
         setPadding(new Insets(20));
 
-        // Header
         Label header = new Label("Library Management System");
         header.setStyle("-fx-font-size:18px; -fx-font-weight:bold;");
 
-        // Input fields
         txtUserId.setPromptText("User ID");
         txtPassword.setPromptText("Password");
         lblMessage.setStyle("-fx-text-fill:red;");
 
-        // Buttons
         Button btnLogin    = new Button("Login");
         Button btnRegister = new Button("Register");
         btnLogin.setOnAction(e -> handleLogin());
@@ -61,7 +55,6 @@ public class LoginScreen extends VBox {
         HBox buttonBox = new HBox(10, btnLogin, btnRegister);
         buttonBox.setAlignment(Pos.CENTER);
 
-        // Assemble
         getChildren().addAll(
                 header,
                 txtUserId,
@@ -75,14 +68,11 @@ public class LoginScreen extends VBox {
         String id  = txtUserId.getText().trim();
         String pwd = txtPassword.getText().trim();
 
-        // Java 8 style Optional handling (no ifPresentOrElse)
         java.util.Optional<Person> opt = authService.login(id, pwd);
         if (opt.isPresent()) {
             Person user = opt.get();
             Parent dashboard;
-            // Person.Role must be defined in your Person interface
             if (user.getRole() == Person.Role.ADMIN) {
-                // AdminDashboard takes PersonService too
                 dashboard = new AdminDashboard(
                         primaryStage,
                         authService,
@@ -91,7 +81,6 @@ public class LoginScreen extends VBox {
                         borrowService
                 );
             } else {
-                // BorrowerDashboard does not need PersonService
                 dashboard = new BorrowerDashboard(
                         primaryStage,
                         authService,
@@ -101,6 +90,7 @@ public class LoginScreen extends VBox {
                 );
             }
             primaryStage.getScene().setRoot(dashboard);
+            primaryStage.setMaximized(true);
         } else {
             lblMessage.setText("Invalid ID or password");
         }
