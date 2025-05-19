@@ -15,7 +15,6 @@ public class BookServiceTest {
     @Before
     public void setUp() {
         bookService = new BookService();
-        // Clear existing books
         List<Book> all = bookService.findAllBooks();
         for (Book b : all) {
             bookService.deleteBook(b.getId());
